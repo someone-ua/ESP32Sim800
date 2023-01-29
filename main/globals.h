@@ -27,10 +27,15 @@
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 0
 
+#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
+#define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
+
 // can be set by user
 extern uint8_t DEFAULT_SSID[32];
 extern uint8_t DEFAULT_PWD[64];
 extern char DEFAULT_AP_IP[32];
+extern char INET_SERVER_IP[32];
+extern int INET_SERVER_PORT;
 extern uint8_t DEFAULT_CHANNEL;
 extern uint8_t SERIAL_PROTOCOL;  // 1=MSP, 3=MAVLink/transparent
 extern uint8_t DB_UART_PIN_TX;

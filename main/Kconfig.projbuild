@@ -36,3 +36,90 @@ menu "DB Webserver Configuration"
             Specify the mount point in VFS.
 
 endmenu
+
+menu "Modem Configuration"
+
+    config  MODEM_INET_SERVER_IP
+        string "Intenet Server IP"
+        default "0.0.0.0"
+        help
+            IP address of remove server
+    config  MODEM_INET_SERVER_PORT
+        int "Internet Server Port"
+        default 14550
+        help
+            Port number of remote server
+    config MODEM_PPP_APN
+        string "Set MODEM APN"
+        default "internet"
+        help
+            Set APN (Access Point Name), a logical name to choose data network
+
+    config MODEM_PPP_AUTH_USERNAME
+        string "Set username for authentication"
+        default "espressif"
+        depends on !EXAMPLE_MODEM_PPP_AUTH_NONE
+        help
+            Set username for PPP Authentication.
+
+    config MODEM_PPP_AUTH_PASSWORD
+        string "Set password for authentication"
+        default "esp32"
+        depends on !EXAMPLE_MODEM_PPP_AUTH_NONE
+        help
+            Set password for PPP Authentication.
+
+    config MODEM_PPP_AUTH_NONE
+        bool "Skip PPP authentication"
+        default n
+        help
+            Set to true for the PPP client to skip authentication
+
+    config NEED_SIM_PIN
+        bool "SIM PIN needed"
+        default n
+        help
+            Enable to set SIM PIN before starting the example
+
+    config SIM_PIN
+        string "Set SIM PIN"
+        default "1234"
+        depends on CONFIG_NEED_SIM_PIN
+        help
+            Pin to unlock the SIM
+
+    menu "UART Configuration"
+        config MODEM_UART_TX_PIN
+            int "TXD Pin Number"
+            default 27
+            range 0 31
+            help
+                Pin number of UART TX.
+
+        config MODEM_UART_RX_PIN
+            int "RXD Pin Number"
+            default 26
+            range 0 31
+            help
+                Pin number of UART RX.
+        config MODEM_POWER_PIN
+            int "Modem Power Pin Number"
+            default 23
+            range  0 31
+            help
+                Pin number of Modem power
+        config  MODEM_RESET_PIN
+            int "Modem Reset Pin"
+            default 5
+            range 0 31
+            help
+                Pin number of Modem reset
+        config  MODEM_PWKEY_PIN
+            int "Modem Power Key Pin"
+            default 4
+            range  0 31
+            help
+                Pin number of Modem power key
+    endmenu
+
+endmenu

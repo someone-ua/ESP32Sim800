@@ -10,7 +10,11 @@ function toJSONString(form) {
         let name = element.name
         let value = element.value;
         let parsed = parseInt(value)
-        if (!isNaN(parsed) && name.localeCompare("ap_ip")) {
+        if (!isNaN(parsed) &&
+             name.localeCompare("ap_ip") &&
+             name.localeCompare("inet_server_ip") &&
+             name.localeCompare("wifi_pass"))
+        {
             if (name) {
                 obj[name] = parsed
             }

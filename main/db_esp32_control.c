@@ -24,7 +24,8 @@
 #include <esp_vfs_dev.h>
 #include <esp_wifi.h>
 #include <lwip/inet.h>
-#include <esp_netif_sta_list.h>
+#include <esp_wifi_ap_get_sta_list.h>
+#include <esp_timer.h>
 #include "esp_log.h"
 #include "lwip/sockets.h"
 #include "driver/uart.h"
@@ -61,7 +62,8 @@ int open_serial_socket() {
             .data_bits = UART_DATA_8_BITS,
             .parity    = UART_PARITY_DISABLE,
             .stop_bits = UART_STOP_BITS_1,
-            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_DEFAULT
     };
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, DB_UART_PIN_TX, DB_UART_PIN_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
@@ -111,8 +113,14 @@ int open_udp_socket() {
  * @param data
  * @param data_length
  */
-void send_to_all_clients(int tcp_clients[], struct db_udp_connection_t *udp_conn, uint8_t data[], uint data_length) {
+void send_to_all_clients(int tcp_clients[], struct db_udp_connection_t *udp_conn, int inet_socket, uint8_t data[], uint data_length) {
     send_to_all_tcp_clients(tcp_clients, data, data_length);
+    if (inet_socket) {
+        int sent = send(inet_socket,data,data_length,0);
+        if (sent != data_length) {
+            ESP_LOGE(TAG, "Inet - Error sending (%i/%i) because of %d", sent, data_length, errno);
+        }
+    }
     for (int i = 0; i < MAX_UDP_CLIENTS; i++) {  // send to all UDP clients
         if (udp_conn->udp_clients[i].sin_len > 0) {
             int sent = sendto(udp_conn->udp_socket, data, data_length, 0, (struct sockaddr *) &udp_conn->udp_clients[i],
@@ -136,12 +144,12 @@ void write_to_uart(const char tcp_client_buffer[], const size_t data_length) {
 /**
  * @brief Parses & sends complete MSP & LTM messages
  */
-void parse_msp_ltm(int tcp_clients[], struct db_udp_connection_t *udp_conn, uint8_t msp_message_buffer[],
+void parse_msp_ltm(int tcp_clients[], struct db_udp_connection_t *udp_conn, int inet_socket, uint8_t msp_message_buffer[],
                    uint *serial_read_bytes,
                    msp_ltm_port_t *db_msp_ltm_port) {
     uint8_t serial_bytes[TRANS_RD_BYTES_NUM];
     uint read;
-    if ((read = uart_read_bytes(UART_NUM_2, serial_bytes, TRANS_RD_BYTES_NUM, 200 / portTICK_RATE_MS)) > 0) {
+    if ((read = uart_read_bytes(UART_NUM_2, serial_bytes, TRANS_RD_BYTES_NUM, 200 / portTICK_PERIOD_MS)) > 0) {
         uart_byte_count += read;
         for (uint j = 0; j < read; j++) {
             (*serial_read_bytes)++;
@@ -150,7 +158,7 @@ void parse_msp_ltm(int tcp_clients[], struct db_udp_connection_t *udp_conn, uint
                 msp_message_buffer[(*serial_read_bytes - 1)] = serial_byte;
                 if (db_msp_ltm_port->parse_state == MSP_PACKET_RECEIVED) {
                     *serial_read_bytes = 0;
-                    send_to_all_clients(tcp_clients, udp_conn, msp_message_buffer, *serial_read_bytes);
+                    send_to_all_clients(tcp_clients, udp_conn, inet_socket, msp_message_buffer, *serial_read_bytes);
                 } else if (db_msp_ltm_port->parse_state == LTM_PACKET_RECEIVED) {
                     memcpy(&ltm_frame_buffer[ltm_frames_in_buffer_pnt], db_msp_ltm_port->ltm_frame_buffer,
                            (db_msp_ltm_port->ltm_payload_cnt + 4));
@@ -158,7 +166,7 @@ void parse_msp_ltm(int tcp_clients[], struct db_udp_connection_t *udp_conn, uint
                     ltm_frames_in_buffer++;
                     if (ltm_frames_in_buffer == LTM_FRAME_NUM_BUFFER &&
                         (LTM_FRAME_NUM_BUFFER <= MAX_LTM_FRAMES_IN_BUFFER)) {
-                        send_to_all_clients(tcp_clients, udp_conn, ltm_frame_buffer, *serial_read_bytes);
+                        send_to_all_clients(tcp_clients, udp_conn, inet_socket, ltm_frame_buffer, *serial_read_bytes);
                         ESP_LOGV(TAG, "Sent %i LTM message(s) to telemetry port!", LTM_FRAME_NUM_BUFFER);
                         ltm_frames_in_buffer = 0;
                         ltm_frames_in_buffer_pnt = 0;
@@ -177,16 +185,16 @@ void parse_msp_ltm(int tcp_clients[], struct db_udp_connection_t *udp_conn, uint
  * @param tcp_clients Array of connected TCP clients
  * @param serial_read_bytes Number of bytes already read for the current packet
  */
-void parse_transparent(int tcp_clients[], struct db_udp_connection_t *udp_conn, uint8_t serial_buffer[],
+void parse_transparent(int tcp_clients[], struct db_udp_connection_t *udp_conn, int inet_socket, uint8_t serial_buffer[],
                        uint *serial_read_bytes) {
     uint8_t serial_bytes[TRANS_RD_BYTES_NUM];
     uint read;
-    if ((read = uart_read_bytes(UART_NUM_2, serial_bytes, TRANS_RD_BYTES_NUM, 200 / portTICK_RATE_MS)) > 0) {
+    if ((read = uart_read_bytes(UART_NUM_2, serial_bytes, TRANS_RD_BYTES_NUM, 200 / portTICK_PERIOD_MS)) > 0) {
         memcpy(&serial_buffer[*serial_read_bytes], serial_bytes, read);
         uart_byte_count += read;
         *serial_read_bytes += read;
         if (*serial_read_bytes >= TRANSPARENT_BUF_SIZE) {
-            send_to_all_clients(tcp_clients, udp_conn, serial_buffer, *serial_read_bytes);
+            send_to_all_clients(tcp_clients, udp_conn, inet_socket, serial_buffer, *serial_read_bytes);
             *serial_read_bytes = 0;
         }
     }
@@ -261,21 +269,20 @@ void update_udp_broadcast(int64_t *last_update, struct db_udp_connection_t *conn
         }
         // add based on connected stations
         wifi_sta_list_t sta_list;
-        esp_netif_sta_list_t netif_sta_list;
+        wifi_sta_mac_ip_list_t wifi_sta_mac_ip_list;
         memset(&sta_list, 0, sizeof(sta_list));
-        memset(&netif_sta_list, 0, sizeof(esp_netif_sta_list_t));
-        ESP_ERROR_CHECK(esp_wifi_ap_get_sta_list(&sta_list));
-        ESP_ERROR_CHECK(esp_netif_get_sta_list(&sta_list, &netif_sta_list));
+        memset(&wifi_sta_mac_ip_list, 0, sizeof(wifi_sta_mac_ip_list_t));
+        ESP_ERROR_CHECK(esp_wifi_ap_get_sta_list_with_ip(&sta_list,&wifi_sta_mac_ip_list));
         num_connected_udp_clients = 0;
-        for (int i = 0; i < netif_sta_list.num; i++) {
-            esp_netif_sta_info_t station = netif_sta_list.sta[i];
+        for (int i = 0; i < wifi_sta_mac_ip_list.num; i++) {
+            esp_netif_pair_mac_ip_t station = wifi_sta_mac_ip_list.sta[i];
 
             struct sockaddr_in new_client_addr;
             new_client_addr.sin_family = PF_INET;
             new_client_addr.sin_port = htons(APP_PORT_PROXY_UDP);
             new_client_addr.sin_len = 16;
             new_client_addr.sin_addr.s_addr = station.ip.addr;
-            ESP_LOGD(TAG, "%i " IPSTR " " MACSTR "", netif_sta_list.num, IP2STR(&station.ip), MAC2STR(station.mac));
+            ESP_LOGD(TAG, "%i " IPSTR " " MACSTR "", wifi_sta_mac_ip_list.num, IP2STR(&station.ip), MAC2STR(station.mac));
             if (station.ip.addr != 0) {  // DHCP bug. Assigns 0.0.0.0 to station when directly connected on startup
                 num_connected_udp_clients += 1;
                 add_udp_to_known_clients(connections, new_client_addr, true);
@@ -284,10 +291,38 @@ void update_udp_broadcast(int64_t *last_update, struct db_udp_connection_t *conn
     }
 }
 
+int connect_to_inet_server() {
+    struct sockaddr_in dest_addr;
+    char* host_ip = INET_SERVER_IP;
+    int port = INET_SERVER_PORT;
+    inet_pton(AF_INET, host_ip, &dest_addr.sin_addr);
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_port = htons(port);
+    int sock =  socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+    if (sock < 0) {
+        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        return 0;
+    }
+    ESP_LOGI(TAG, "Socket created, connecting to %s:%d", host_ip, port);
+
+    int err = connect(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    if (err != 0) {
+        ESP_LOGE(TAG, "Socket unable to connect: errno %d", errno);
+        return 0;
+    }
+    ESP_LOGI(TAG, "Successfully connected");
+
+    fcntl(sock,F_SETFL,fcntl(sock, F_GETFL, 0) | O_NONBLOCK);
+
+    return sock;
+}
+
 _Noreturn void control_module_tcp() {
     int uart_socket = open_serial_socket();
-    int tcp_master_socket = open_tcp_server(app_port_proxy);
 
+    int inet_socket = connect_to_inet_server();
+
+    int tcp_master_socket = open_tcp_server(app_port_proxy);
     struct db_udp_connection_t udp_conn;
     udp_conn.udp_socket = open_udp_socket();
     fcntl(udp_conn.udp_socket, F_SETFL, O_NONBLOCK);
@@ -349,17 +384,25 @@ _Noreturn void control_module_tcp() {
             write_to_uart(udp_buffer, recv_length);
             add_udp_to_known_clients(&udp_conn, udp_source_addr, false);
         }
+
+        // handle incoming from inet connection
+        recv_length = recv(inet_socket,tcp_client_buffer,TCP_BUFF_SIZ,0);
+        if (recv_length > 0) {
+            ESP_LOGI(TAG, "Inet: Received %i bytes", recv_length);
+            write_to_uart(tcp_client_buffer, recv_length);
+        }
+
         update_udp_broadcast(&last_udp_brdc_update, &udp_conn, &wifi_mode);
         switch (SERIAL_PROTOCOL) {
             case 1:
             case 2:
-                parse_msp_ltm(tcp_clients, &udp_conn, msp_message_buffer, &read_msp_ltm, &db_msp_ltm_port);
+                parse_msp_ltm(tcp_clients, &udp_conn, inet_socket, msp_message_buffer, &read_msp_ltm, &db_msp_ltm_port);
                 break;
             default:
             case 3:
             case 4:
             case 5:
-                parse_transparent(tcp_clients, &udp_conn, serial_buffer, &read_transparent);
+                parse_transparent(tcp_clients, &udp_conn, inet_socket, serial_buffer, &read_transparent);
                 break;
         }
     }

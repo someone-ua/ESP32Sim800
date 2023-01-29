@@ -21,6 +21,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
+#include <esp_chip_info.h>
 #include "esp_http_server.h"
 #include "esp_system.h"
 #include "esp_log.h"
@@ -199,6 +200,18 @@ static esp_err_t settings_change_post_handler(httpd_req_t *req) {
     } else if (json) {
         ESP_LOGE(REST_TAG, "New IP \"%s\" is not a valid IP address! Not changing!", json->valuestring);
     }
+
+    json = cJSON_GetObjectItem(root, "inet_server_ip");
+    if (json && is_valid_ip4(json->valuestring)) {
+        strncpy(INET_SERVER_IP, json->valuestring, sizeof(INET_SERVER_IP) - 1);
+    } else if (json) {
+        ESP_LOGE(REST_TAG, "New Internet Server IP \"%s\" is not a valid IP address! Not changing!", json->valuestring);
+    }
+
+    json = cJSON_GetObjectItem(root, "inet_srv_port");
+    if (json) INET_SERVER_PORT = json->valueint;
+
+
     write_settings_to_nvs();
     ESP_LOGI(REST_TAG, "Settings changed!");
     cJSON_Delete(root);
@@ -267,6 +280,8 @@ static esp_err_t settings_data_get_handler(httpd_req_t *req) {
     cJSON_AddNumberToObject(root, "ltm_pp", LTM_FRAME_NUM_BUFFER);
     cJSON_AddNumberToObject(root, "msp_ltm_port", MSP_LTM_SAMEPORT);
     cJSON_AddStringToObject(root, "ap_ip", DEFAULT_AP_IP);
+    cJSON_AddStringToObject(root, "inet_server_ip", INET_SERVER_IP);
+    cJSON_AddNumberToObject(root, "inet_srv_port", INET_SERVER_PORT);
     const char *sys_info = cJSON_Print(root);
     httpd_resp_sendstr(req, sys_info);
     free((void *) sys_info);
