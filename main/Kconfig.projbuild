@@ -55,39 +55,6 @@ menu "Modem Configuration"
         help
             Set APN (Access Point Name), a logical name to choose data network
 
-    config MODEM_PPP_AUTH_USERNAME
-        string "Set username for authentication"
-        default "espressif"
-        depends on !EXAMPLE_MODEM_PPP_AUTH_NONE
-        help
-            Set username for PPP Authentication.
-
-    config MODEM_PPP_AUTH_PASSWORD
-        string "Set password for authentication"
-        default "esp32"
-        depends on !EXAMPLE_MODEM_PPP_AUTH_NONE
-        help
-            Set password for PPP Authentication.
-
-    config MODEM_PPP_AUTH_NONE
-        bool "Skip PPP authentication"
-        default n
-        help
-            Set to true for the PPP client to skip authentication
-
-    config NEED_SIM_PIN
-        bool "SIM PIN needed"
-        default n
-        help
-            Enable to set SIM PIN before starting the example
-
-    config SIM_PIN
-        string "Set SIM PIN"
-        default "1234"
-        depends on CONFIG_NEED_SIM_PIN
-        help
-            Pin to unlock the SIM
-
     menu "UART Configuration"
         config MODEM_UART_TX_PIN
             int "TXD Pin Number"
