@@ -42,7 +42,6 @@
 #include "main.h"
 
 #define NVS_NAMESPACE "settings"
-#define USE_ALT_UART_CONFIG // for boards that have flash connected to GPIO 17/16 - will crash otherwise
 
 static const int CONNECT_BIT = BIT0;
 static const int GOT_DATA_BIT = BIT2;
@@ -67,15 +66,13 @@ uint8_t DEFAULT_PWD[64] = "dronebridge";
 char DEFAULT_AP_IP[32] = "192.168.2.1";
 char INET_SERVER_IP[32] = CONFIG_MODEM_INET_SERVER_IP;
 int INET_SERVER_PORT = CONFIG_MODEM_INET_SERVER_PORT;
+char MODEM_PPP_APN[32] = CONFIG_MODEM_PPP_APN;
 uint8_t DEFAULT_CHANNEL = 6;
 uint8_t SERIAL_PROTOCOL = 4;  // 1=MSP, 4=MAVLink/transparent
-# ifdef USE_ALT_UART_CONFIG
-uint8_t DB_UART_PIN_TX = GPIO_NUM_33;
-uint8_t DB_UART_PIN_RX = GPIO_NUM_32;
-# else
-uint8_t DB_UART_PIN_TX = GPIO_NUM_17;
-uint8_t DB_UART_PIN_RX = GPIO_NUM_16;
-#endif
+
+uint8_t DB_UART_PIN_TX = GPIO_NUM_2;
+uint8_t DB_UART_PIN_RX = GPIO_NUM_15;
+
 int DB_UART_BAUD_RATE = 115200;
 uint16_t TRANSPARENT_BUF_SIZE = 64;
 uint8_t LTM_FRAME_NUM_BUFFER = 1;
@@ -269,7 +266,7 @@ void init_modem() {
     vTaskDelay(1000 /portTICK_PERIOD_MS);
 
     /* Configure the PPP netif */
-    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(CONFIG_MODEM_PPP_APN);
+    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(MODEM_PPP_APN);
     esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
     esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
     assert(esp_netif);
@@ -300,11 +297,15 @@ void init_modem() {
 
 void write_settings_to_nvs() {
     ESP_LOGI(TAG,
-             "Trying to save: ssid %s\nwifi_pass %s\nwifi_chan %i\nbaud %i\ngpio_tx %i\ngpio_rx %i\nproto %i\n"
-             "trans_pack_size %i\nltm_per_packet %i\nmsp_ltm %i\nap_ip %s\ninet_server_ip %s\ninet_srv_port %i",
+             "Trying to save: ssid %s\n"
+             "wifi_pass %s\nwifi_chan %i\n"
+             "baud %i\ngpio_tx %i\ngpio_rx %i\nproto %i\n"
+             "trans_pack_size %i\nltm_per_packet %i\n"
+             "msp_ltm %i\nap_ip %s\ninet_server_ip %s\ninet_srv_port %i\n"
+             "inet_apn %s",
              DEFAULT_SSID, DEFAULT_PWD, DEFAULT_CHANNEL, DB_UART_BAUD_RATE, DB_UART_PIN_TX, DB_UART_PIN_RX,
              SERIAL_PROTOCOL, TRANSPARENT_BUF_SIZE, LTM_FRAME_NUM_BUFFER, MSP_LTM_SAMEPORT, DEFAULT_AP_IP,
-             INET_SERVER_IP,INET_SERVER_PORT);
+             INET_SERVER_IP,INET_SERVER_PORT,MODEM_PPP_APN);
     ESP_LOGI(TAG, "Saving to NVS %s", NVS_NAMESPACE);
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE, NVS_READWRITE, &my_handle));
@@ -321,6 +322,7 @@ void write_settings_to_nvs() {
     ESP_ERROR_CHECK(nvs_set_u8(my_handle, "ltm_per_packet", LTM_FRAME_NUM_BUFFER));
     ESP_ERROR_CHECK(nvs_set_u8(my_handle, "msp_ltm", MSP_LTM_SAMEPORT));
     ESP_ERROR_CHECK(nvs_set_str(my_handle, "ap_ip", DEFAULT_AP_IP));
+    ESP_ERROR_CHECK(nvs_set_str(my_handle, "inet_apn", MODEM_PPP_APN));
     ESP_ERROR_CHECK(nvs_commit(my_handle));
     nvs_close(my_handle);
 }
@@ -358,6 +360,11 @@ void read_settings_nvs() {
         memcpy(INET_SERVER_IP, inet_server_ip, required_size);
 
         ESP_ERROR_CHECK(nvs_get_i32(my_handle, "inet_srv_port", &INET_SERVER_PORT));
+
+        ESP_ERROR_CHECK(nvs_get_str(my_handle, "inet_apn", NULL, &required_size));
+        char *inet_apn = malloc(required_size);
+        ESP_ERROR_CHECK(nvs_get_str(my_handle, "inet_apn", inet_apn, &required_size));
+        memcpy(MODEM_PPP_APN, inet_apn, required_size);
 
         ESP_ERROR_CHECK(nvs_get_u8(my_handle, "wifi_chan", &DEFAULT_CHANNEL));
         ESP_ERROR_CHECK(nvs_get_i32(my_handle, "baud", &DB_UART_BAUD_RATE));

@@ -211,6 +211,8 @@ static esp_err_t settings_change_post_handler(httpd_req_t *req) {
     json = cJSON_GetObjectItem(root, "inet_srv_port");
     if (json) INET_SERVER_PORT = json->valueint;
 
+    json = cJSON_GetObjectItem(root, "inet_apn");
+    if (json) strncpy(MODEM_PPP_APN, json->valuestring, sizeof(MODEM_PPP_APN) - 1);
 
     write_settings_to_nvs();
     ESP_LOGI(REST_TAG, "Settings changed!");
@@ -273,7 +275,7 @@ static esp_err_t system_reboot_get_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
-/* Simple handler for getting temperature data */
+/* Simple handler for getting data */
 static esp_err_t settings_data_get_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "application/json");
     cJSON *root = cJSON_CreateObject();
@@ -288,6 +290,7 @@ static esp_err_t settings_data_get_handler(httpd_req_t *req) {
     cJSON_AddNumberToObject(root, "ltm_pp", LTM_FRAME_NUM_BUFFER);
     cJSON_AddNumberToObject(root, "msp_ltm_port", MSP_LTM_SAMEPORT);
     cJSON_AddStringToObject(root, "ap_ip", DEFAULT_AP_IP);
+    cJSON_AddStringToObject(root, "inet_apn", MODEM_PPP_APN);
     cJSON_AddStringToObject(root, "inet_server_ip", INET_SERVER_IP);
     cJSON_AddNumberToObject(root, "inet_srv_port", INET_SERVER_PORT);
     const char *sys_info = cJSON_Print(root);
