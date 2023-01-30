@@ -246,6 +246,14 @@ static esp_err_t system_stats_get_handler(httpd_req_t *req) {
     cJSON_AddNumberToObject(root, "read_bytes", uart_byte_count);
     cJSON_AddNumberToObject(root, "tcp_connected", num_connected_tcp_clients);
     cJSON_AddNumberToObject(root, "udp_connected", num_connected_udp_clients);
+    int ber;
+    int rssi;
+    esp_modem_get_signal_quality(dce,&rssi,&ber);
+    cJSON_AddNumberToObject(root, "signal_strength", 100 * (rssi / 31));
+    char operator_name[50];
+    int act;
+    esp_modem_get_operator_name(dce,operator_name,&act);
+    cJSON_AddStringToObject(root, "operator_name", operator_name);
     const char *sys_info = cJSON_Print(root);
     httpd_resp_sendstr(req, sys_info);
     free((void *) sys_info);

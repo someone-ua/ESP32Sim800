@@ -108,6 +108,13 @@ function get_stats() {
         } else if (!isNaN(udp_clients)) {
             document.getElementById("udp_connected").innerHTML = udp_clients + " client"
         }
+
+        let operator_name = json_data["operator_name"]
+        document.getElementById("operator_name").innerHTML = operator_name
+
+        let signal_strength = parseInt(json_data["signal_strength"])
+        document.getElementById("signal_strength").innerHTML = signal_strength + "%"
+
     }).catch(error => {
         conn_status = 0
         error.message;

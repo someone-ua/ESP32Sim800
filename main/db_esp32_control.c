@@ -388,7 +388,7 @@ _Noreturn void control_module_tcp() {
         // handle incoming from inet connection
         recv_length = recv(inet_socket,tcp_client_buffer,TCP_BUFF_SIZ,0);
         if (recv_length > 0) {
-            ESP_LOGI(TAG, "Inet: Received %i bytes", recv_length);
+            ESP_LOGD(TAG, "Inet: Received %i bytes", recv_length);
             write_to_uart(tcp_client_buffer, recv_length);
         }
 

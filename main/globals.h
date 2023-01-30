@@ -21,6 +21,7 @@
 #define DB_ESP32_GLOBALS_H
 
 #include <freertos/event_groups.h>
+#include "esp_modem_api.h"
 
 #define MAX_LTM_FRAMES_IN_BUFFER 5
 #define BUILDVERSION 7
@@ -48,5 +49,6 @@ extern uint8_t MSP_LTM_SAMEPORT;        // 0 = no (1607 MSP, 1604 LTM); >0 = yes
 extern uint32_t uart_byte_count;
 extern int8_t num_connected_tcp_clients;
 extern int8_t num_connected_udp_clients;
+extern esp_modem_dce_t *dce;
 
 #endif //DB_ESP32_GLOBALS_H

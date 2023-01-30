@@ -80,6 +80,7 @@ int DB_UART_BAUD_RATE = 115200;
 uint16_t TRANSPARENT_BUF_SIZE = 64;
 uint8_t LTM_FRAME_NUM_BUFFER = 1;
 uint8_t MSP_LTM_SAMEPORT = 0;
+esp_modem_dce_t *dce;
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data) {
@@ -281,15 +282,15 @@ void init_modem() {
     dte_config.uart_config.rx_io_num = CONFIG_MODEM_UART_RX_PIN;
 
     ESP_LOGI(TAG, "Initializing esp_modem for the SIM800 module...");
-    esp_modem_dce_t *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, esp_netif);
+    dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, esp_netif);
 
     xEventGroupClearBits(event_group, CONNECT_BIT | GOT_DATA_BIT);
 
     vTaskDelay(5000 /portTICK_PERIOD_MS);
 
-    esp_err_t err = esp_modem_set_mode(dce, ESP_MODEM_MODE_DATA);
+    esp_err_t err = esp_modem_set_mode(dce, ESP_MODEM_MODE_CMUX);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_modem_set_mode(ESP_MODEM_MODE_DATA) failed with %d", err);
+        ESP_LOGE(TAG, "esp_modem_set_mode(ESP_MODEM_MODE_CMUX) failed with %d", err);
         return;
     }
     /* Wait for IP address */
@@ -300,7 +301,7 @@ void init_modem() {
 void write_settings_to_nvs() {
     ESP_LOGI(TAG,
              "Trying to save: ssid %s\nwifi_pass %s\nwifi_chan %i\nbaud %i\ngpio_tx %i\ngpio_rx %i\nproto %i\n"
-             "trans_pack_size %i\nltm_per_packet %i\nmsp_ltm %i\nap_ip %s\ninet_server_ip %s\ninet_srv_port%i",
+             "trans_pack_size %i\nltm_per_packet %i\nmsp_ltm %i\nap_ip %s\ninet_server_ip %s\ninet_srv_port %i",
              DEFAULT_SSID, DEFAULT_PWD, DEFAULT_CHANNEL, DB_UART_BAUD_RATE, DB_UART_PIN_TX, DB_UART_PIN_RX,
              SERIAL_PROTOCOL, TRANSPARENT_BUF_SIZE, LTM_FRAME_NUM_BUFFER, MSP_LTM_SAMEPORT, DEFAULT_AP_IP,
              INET_SERVER_IP,INET_SERVER_PORT);
