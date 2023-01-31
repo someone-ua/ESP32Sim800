@@ -379,6 +379,8 @@ void read_settings_nvs() {
         free(wifi_pass);
         free(ssid);
         free(ap_ip);
+        free(inet_server_ip);
+        free(inet_apn);
     }
 }
 
